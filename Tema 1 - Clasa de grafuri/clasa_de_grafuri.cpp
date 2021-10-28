@@ -93,7 +93,7 @@ void Graph::printDistancesToNode(int startNode) {
 
 
 /// <summary>
-/// Does a breadth-first search and maps the distances to a vector of ints given as parameter.
+/// Does an iterative breadth-first search and maps the distances from starting node to a vector of ints given as parameter.
 /// </summary>
 /// <param name="startNode"> starting node of search </param>
 /// <param name="distances"> vector to map distances to </param>
@@ -148,8 +148,8 @@ void Graph::DFS(int startNode, vector<int>& visited){
 
 	// while there still are accesible nodes that were not visited
 	while (toVisit.empty() != true) {
-		currentNode = toVisit.top();
 
+		currentNode = toVisit.top();
 		toVisit.pop();
 
 		// if current node was not visited before
@@ -171,8 +171,9 @@ void Graph::DFS(int currentNode, vector<int>& visited, stack<int>& solution) {
 
 	visited[currentNode] = 1;
 
+	//for every neighbor of current node
 	for (int node : adjacencyLists[currentNode]) 
-		if (!visited[node]) 
+		if (!visited[node])
 			DFS(node, visited, solution);
 		
 	//add 1 that was subtracted on read
@@ -228,7 +229,6 @@ vector<int> Graph::topologicalSort() {
 	vector<int> sortedItems;
 	stack<int> solution;
 
-	//if graph is not directed returns empty vector
 	if (!isDirected) {
 		return sortedItems;
 	}
@@ -239,7 +239,7 @@ vector<int> Graph::topologicalSort() {
 				DFS(i, visited, solution);
 	}
 
-	//move items from solution stack to sorted vector I.E. reverse order
+	//move items from solution stack to sorted vector (in reverse order)
 	while (!solution.empty()) {
 		sortedItems.push_back(solution.top());
 		solution.pop();
