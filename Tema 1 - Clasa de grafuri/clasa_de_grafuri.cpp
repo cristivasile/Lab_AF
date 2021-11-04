@@ -4,17 +4,28 @@
 #include <iterator>
 #include <vector>
 #include <stack>
+#include <list>
+#include <unordered_set>
 
 using namespace std;
 
-ifstream inputFile("dfs.in");
-ofstream outputFile("dfs.out");
+ifstream inputFile("ctc.in");
+ofstream outputFile("ctc.out");
 
 constexpr int maxSize = 100001;
 
-void countingSort(vector<int>&);
+//Auxiliary functions not related to graphs, defined after main.
+/// <summary>
+/// Basic descending counting sort algorithm.
+/// </summary>
+/// <param name="size">maximum size of sorted numbers; maximum value = 100.000.000</param>
+void countingSort(vector<int>&, int = 1000);
+
 template <class T>
 void printVector(vector<T>);
+
+//--------------------------------------------------------------
+
 
 class Graph {
 
@@ -24,16 +35,19 @@ class Graph {
 
 public:
 	Graph(int, bool);
-	void initializeAdjacencyLists();
-
 	void readEdges(int);
-	void printDistancesToNode(int);
+	vector<int> getDistancesToNode(int);
+	vector<int> getTopologicalSort();
+	list<vector<int>> getStronglyConnectedComponents();
+	int getNumberOfConnectedComponents();
+	friend bool havelHakimi(vector<int>);
+
+private:
+	void initializeAdjacencyLists();
+	void tarjanDFS(int, int&, vector<int>&, vector<int>&, list<vector<int>>&, stack<int>&, unordered_set<int>&);
 	void BFS(int, vector<int>&);
-	int numberOfConnectedComponents();
 	void DFS(int, vector<int>&);
 	void DFS(int, vector<int>&, stack<int>&);
-	bool havelHakimi(vector<int>);
-	vector<int> topologicalSort();
 };
 
 Graph::Graph(int size = maxSize, bool isDirected = false) {
@@ -79,16 +93,16 @@ void Graph::readEdges(int nrEdges) {
 	}
 }
 /// <summary>
-/// Prints the distance from a node given as parameter to all nodes in the graph, or -1 if they are inaccesible.
+/// Returns a vector of distances from a node given as parameter to all nodes in the graph, or -1 if they are inaccesible from that node.
 /// </summary>
 /// <param name="startNode">the node for which distances are calculated</param>
-void Graph::printDistancesToNode(int startNode) {
+vector<int> Graph::getDistancesToNode(int startNode) {
 
 	vector<int> distances(nrNodes, -1);
 	distances[startNode] = 0;          //distance from starting node to starting node is 0
 	BFS(startNode, distances);
 
-	printVector(distances);
+	return distances;
 }
 
 
@@ -119,10 +133,9 @@ void Graph::BFS(int startNode, vector<int>& distances) {
 
 
 /// <summary>
-/// Computes number of connected components
+/// Computes number of connected components.
 /// </summary>
-/// <returns></returns>
-int Graph::numberOfConnectedComponents() {
+int Graph::getNumberOfConnectedComponents() {
 	int nr = 0;
 	vector<int> visited(nrNodes, 0); //all nodes ar unvisited at start
 
@@ -139,7 +152,7 @@ int Graph::numberOfConnectedComponents() {
 /// <summary>
 /// Iterative depth-first traversal that maps visited nodes in a vector of ints given as parameter.
 /// </summary>
-void Graph::DFS(int startNode, vector<int>& visited){
+void Graph::DFS(int startNode, vector<int>& visited) {
 
 	int currentNode;
 	stack<int> toVisit;
@@ -152,30 +165,28 @@ void Graph::DFS(int startNode, vector<int>& visited){
 		currentNode = toVisit.top();
 		toVisit.pop();
 
-		// if current node was not visited before
 		if (visited[currentNode] == 0) {
-			// iterate through the current node's neighbors
-			for (auto node : adjacencyLists[currentNode])
-				if (visited[node] == 0)
-					toVisit.push(node);
-
 			visited[currentNode] = 1;
+
+			// iterate through the current node's neighbors
+			for (auto neighboringNode : adjacencyLists[currentNode])
+				if (visited[neighboringNode] == 0)
+					toVisit.push(neighboringNode);
 		}
 	}
 }
 
 /// <summary>
-/// Recursive DFS overload that pushes nodes to a stack when returning from them. Used in topological sort. 
+/// Recursive DFS that pushes nodes to a stack when returning from them. Used in topological sort. 
 /// </summary>
 void Graph::DFS(int currentNode, vector<int>& visited, stack<int>& solution) {
 
 	visited[currentNode] = 1;
 
-	//for every neighbor of current node
-	for (int node : adjacencyLists[currentNode]) 
-		if (!visited[node])
-			DFS(node, visited, solution);
-		
+	for (int neighboringNode : adjacencyLists[currentNode])
+		if (!visited[neighboringNode])
+			DFS(neighboringNode, visited, solution);
+
 	//add 1 that was subtracted on read
 	solution.push(currentNode + 1);
 }
@@ -183,7 +194,8 @@ void Graph::DFS(int currentNode, vector<int>& visited, stack<int>& solution) {
 /// <summary>
 /// Checks if a collection of degrees can form a graph.
 /// </summary>
-bool Graph::havelHakimi(vector<int> degrees) {
+bool havelHakimi(vector<int> degrees) {
+	int nrNodes = degrees.size();
 
 	//check if sum of degrees is even or odd
 	int sum = 0;
@@ -221,25 +233,25 @@ bool Graph::havelHakimi(vector<int> degrees) {
 }
 
 /// <summary>
-/// Computes a topological sort of an oriented graph.
+/// Computes a topological sort of a directed graph.
 /// Note: assumes graph is acyclic.
 /// </summary>
-/// <returns>Vector of topological sort or empty vector if graph is not directed</returns>
-vector<int> Graph::topologicalSort() {
+vector<int> Graph::getTopologicalSort() {
 	vector<int> sortedItems;
 	stack<int> solution;
 
 	if (!isDirected) {
+		outputFile << "Can't compute topological sort of undirected graph";
 		return sortedItems;
 	}
 	else {
 		vector<int> visited(nrNodes, 0);
-		for (int i = 0; i < nrNodes; i++) 
-			if (!visited[i]) 
-				DFS(i, visited, solution);
+		for (int node = 0; node < nrNodes; node++)
+			if (!visited[node])
+				DFS(node, visited, solution);
 	}
 
-	//move items from solution stack to sorted vector (in reverse order)
+	//move items from solution stack to sorted vector
 	while (!solution.empty()) {
 		sortedItems.push_back(solution.top());
 		solution.pop();
@@ -247,16 +259,84 @@ vector<int> Graph::topologicalSort() {
 	return sortedItems;
 }
 
-int nrNoduri, nrMuchii;
+/// <summary>
+/// Tarjan's algorithm used in strongly connected components computing.
+/// </summary>
+/// <param name="counter">auxiliary for mapping traversal order to visitIndex</param>
+/// <param name="visitIndex">order of traversal in DFS graph forest</param>
+/// <param name="lowestAncestor">index of lowest ancestor reachable by back edges</param>
+/// <param name="connectedComponents">list where connected components are added when found</param>
+/// <param name="notCompleted">collection of nodes that have been visited but are not part of strongly complete connected components yet; used as a stack</param>
+/// <param name="onStack">hash containing all nodes that are currently on notCompleted stack</param>
+void Graph::tarjanDFS(int currentNode, int& counter, vector<int>& visitIndex, vector<int>& lowestAncestor, list<vector<int>>& connectedComponents, stack<int>& notCompleted, unordered_set<int>& onStack) {
+
+	visitIndex[currentNode] = counter++;
+	lowestAncestor[currentNode] = visitIndex[currentNode];
+
+	notCompleted.push(currentNode);
+	onStack.insert(currentNode);
+
+	for (int neighboringNode : adjacencyLists[currentNode])
+		if (visitIndex[neighboringNode] == -1) {
+			tarjanDFS(neighboringNode, counter, visitIndex, lowestAncestor, connectedComponents, notCompleted, onStack);
+
+			if (lowestAncestor[neighboringNode] < lowestAncestor[currentNode])
+				lowestAncestor[currentNode] = lowestAncestor[neighboringNode];
+
+		}
+		else if (onStack.find(neighboringNode) != onStack.end() && lowestAncestor[neighboringNode] < lowestAncestor[currentNode])
+			lowestAncestor[currentNode] = lowestAncestor[neighboringNode];
+
+	if (lowestAncestor[currentNode] == visitIndex[currentNode]) {
+		vector<int> connectedComponent;
+		do {
+			//add 1 subtracted on read
+			connectedComponent.push_back(notCompleted.top() + 1);
+			notCompleted.pop();
+			onStack.erase(connectedComponent.back() - 1);
+		} while (connectedComponent.back() - 1 != currentNode);
+
+		connectedComponents.push_back(connectedComponent);
+	}
+}
+
+/// <summary>
+/// Prints number of strongly connected components and the members of each component on separate lines.
+/// </summary>
+list<vector<int>> Graph::getStronglyConnectedComponents() {
+
+	list<vector<int>> connectedComponents;
+	vector<int> visitIndex(nrNodes, -1);  //order of traversal in DFS graph forest
+	vector<int> lowestAncestor(nrNodes, 0); //index of lowest ancestor reachable by back edges
+	stack<int> notCompleted; //contains visited elements that are not part of completed strongly connected components
+	unordered_set<int> onStack; //contains all elements that are currently on notCompleted stack
+	int counter = 0;
+
+	if (!isDirected) {
+		outputFile << "The term \"strongly connected component\" applies only to directed graphs";
+		return connectedComponents;
+	}
+	else for (int node = 0; node < nrNodes; node++)
+		if (visitIndex[node] == -1) {
+			tarjanDFS(node, counter, visitIndex, lowestAncestor, connectedComponents, notCompleted, onStack);
+		}
+
+	return connectedComponents;
+}
+
+int nodeNr, edgeNr;
 
 int main()
 {
-	inputFile >> nrNoduri >> nrMuchii;
+	inputFile >> nodeNr >> edgeNr;
 
-	Graph graph(nrNoduri, false);
-	graph.readEdges(nrMuchii);
-	outputFile << graph.numberOfConnectedComponents();
+	Graph graph(nodeNr, true);
+	graph.readEdges(edgeNr);
 
+	list<vector<int>> stronglyConnectedComponents = graph.getStronglyConnectedComponents();
+	outputFile << stronglyConnectedComponents.size() << "\n";
+	for (auto elem : stronglyConnectedComponents)
+		printVector(elem);
 	/* MAIN HAVEL HAKIMI
 	//files: havelhakimi.in, havelhakimi.out
 	inputFile >> nrNoduri;
@@ -269,7 +349,7 @@ int main()
 		inputFile >> degrees[i];
 	}
 
-	if (graph.havelHakimi(degrees)) {
+	if (havelHakimi(degrees)) {
 		outputFile << "Degrees can form a graph.";
 	}
 	else {
@@ -278,18 +358,17 @@ int main()
 	*/
 }
 
+void countingSort(vector<int>& toSort, int maxSize) {
+	if (maxSize > 10000000)
+		maxSize = 100000000;
 
-/// <summary>
-/// Basic descending counting sort algorithm, only works for numbers up to 1000;
-/// </summary>
-void countingSort(vector<int>& toSort) {
-	vector<int> count(1000, 0);
+	vector<int> count(maxSize, 0);
 	int maxElem = -1;
 
 	for (int i = 0; i < toSort.size(); i++) {
 		count[toSort[i]]++;
 
-		//check for maximum number to cut down execution time since we expect small numbers
+		//check for maximum number to cut down execution time since mostly small numbers are expected
 		if (toSort[i] > maxElem) {
 			maxElem = toSort[i];
 		}
@@ -309,4 +388,5 @@ template <class T>
 void printVector(vector<T> toPrint) {
 	for (int i = 0; i < toPrint.size(); i++)
 		outputFile << toPrint[i] << " ";
+	outputFile << "\n";
 }
