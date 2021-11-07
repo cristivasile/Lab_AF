@@ -1,0 +1,7 @@
+1. BFS: 100 - https://infoarena.ro/job_detail/2788929?action=view-source 
+        /90 cu clasa completa - https://infoarena.ro/job_detail/2795846?action=view-source
+2. DFS: 100 - https://infoarena.ro/job_detail/2795853?action=view-source
+3. Biconex: 100 - https://infoarena.ro/job_detail/2795832?action=view-source
+4. CTC: 100 - https://infoarena.ro/job_detail/2795855?action=view-source
+6. Muchie critica: 10/15 - https://leetcode.com/submissions/detail/581433692/
+7. Sortare topologica: 100 - https://infoarena.ro/job_detail/2795854?action=view-source
