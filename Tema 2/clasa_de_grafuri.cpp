@@ -9,8 +9,8 @@
 
 using namespace std;
 
-ifstream inputFile("apm.in");
-ofstream outputFile("apm.out");
+ifstream inputFile("dijkstra.in");
+ofstream outputFile("dijkstra.out");
 
 constexpr int maxSize = 100001;
 
@@ -18,26 +18,28 @@ constexpr int maxSize = 100001;
 /// <summary>
 /// Basic descending counting sort algorithm.
 /// </summary>
-/// <param name="size">- maximum size of sorted numbers; maximum value = 100.000.000</param>
-void countingSort(vector<int>&, int = 1000);
+/// <param name="size"> - maximum size of sorted numbers; maximum value = 100.000.000</param>
+void countingSort(vector<int>& toSort, int maxSize = 1000);
 
+
+/// <param name="startIndex"> - can be used to exclude first "startIndex" elements from print</param>
 template <class T>
-void printVector(vector<T>);
+void printVector(vector<T> toPrint, int startIndex = 0);
 //--------------------------------------------------------------
 
-class Edge {
-	public:
-		int outNode, inNode, weight;
-		Edge(int o, int i, int w) : outNode(o), inNode(i), weight(w) {};
-		bool operator<(const Edge& ob) const{
-			return weight > ob.weight;
-		}
+struct Edge {
+	int outNode, inNode, weight;
+	Edge(int o, int i, int w) : outNode(o), inNode(i), weight(w) {};
+	bool operator<(const Edge& ob) const{
+		return weight > ob.weight;
+	}
 };
 
 class Graph {
 
 	vector<vector<int>> adjacencyLists;
-	vector<vector<pair<int, int>>> weightedAdjacencyLists;
+	struct WeightedEdge { int node, weight; WeightedEdge(int n, int w) : node(n), weight(w) {} };
+	vector<vector<WeightedEdge>> weightedAdjacencyLists;
 	int nrNodes;
 	bool isDirected, isWeighted;
 
@@ -52,6 +54,7 @@ public:
 	int getNumberOfConnectedComponents();
 	friend bool havelHakimi(vector<int>);
 	vector<vector<int>> getMinimumSpanningTree(int&);
+	vector<int> getShortestPathFromNode(int);
 
 private:
 	void initializeAdjacencyLists();
@@ -85,7 +88,7 @@ void Graph::initializeAdjacencyLists() {
 			vector<int> emptyAdjacencyVector;
 			adjacencyLists.push_back(emptyAdjacencyVector);
 
-			vector<pair<int, int>> emptyWeightVector;
+			vector<WeightedEdge> emptyWeightVector;
 			weightedAdjacencyLists.push_back(emptyWeightVector);
 		}
 }
@@ -123,7 +126,7 @@ void Graph::readEdges(int nrEdges) {
 				outNode--;
 				inNode--;
 				adjacencyLists[outNode].push_back(inNode);
-				weightedAdjacencyLists[outNode].push_back({ inNode , weight });
+				weightedAdjacencyLists[outNode].push_back(WeightedEdge(inNode, weight));
 			}
 		}
 		else {
@@ -133,9 +136,9 @@ void Graph::readEdges(int nrEdges) {
 				inNode--;
 
 				adjacencyLists[outNode].push_back(inNode);
-				weightedAdjacencyLists[outNode].push_back({ inNode , weight });
+				weightedAdjacencyLists[outNode].push_back(WeightedEdge(inNode, weight));
 				adjacencyLists[inNode].push_back(outNode);
-				weightedAdjacencyLists[inNode].push_back({ outNode , weight });
+				weightedAdjacencyLists[inNode].push_back(WeightedEdge(outNode, weight));
 			}
 		}
 	}
@@ -537,8 +540,8 @@ vector<vector<int>> Graph::getMinimumSpanningTree(int& totalWeight) {
 		while(addedNodes != nrNodes){
 			//add all edges of last added node that lead to undiscovered nodes to heap
 			for (auto edge : weightedAdjacencyLists[lastAddedNode])
-				if(!isAdded[edge.first])
-					lightestEdge.push(Edge(lastAddedNode, edge.first, edge.second));
+				if(!isAdded[edge.node])
+					lightestEdge.push(Edge(lastAddedNode, edge.node, edge.weight));
 
 			//while lightest edge leads to already added node, pop
 			while (isAdded[lightestEdge.top().inNode])
@@ -560,23 +563,62 @@ vector<vector<int>> Graph::getMinimumSpanningTree(int& totalWeight) {
 	}
 }
 
+/// <summary>
+/// Dijkstra's algorithm used in determining shortest path to all nodes starting from a single point.
+/// </summary>
+vector<int> Graph::getShortestPathFromNode(int startNode) {
+
+	const int maxValue = 1000000000;
+
+	struct Node {
+		int node, distance;
+		Node(int n, int w) : node(n), distance(w) {};
+		bool operator<(const Node& ob) const {
+			return distance > ob.distance;
+		}
+	}; //auxiliary node struct used in closestNode heap
+
+	unordered_set <int> checkedNodes;
+	vector<int> minimumDistance(nrNodes, maxValue); //we assume all nodes are inaccessible on initialization
+	priority_queue<Node> closestNode; 
+	int currentNode;
+
+	currentNode = startNode;
+	minimumDistance[currentNode] = 0;
+	closestNode.push(Node(currentNode, 0));
+
+	while (closestNode.size() > 0)
+		if (checkedNodes.find(closestNode.top().node) != checkedNodes.end()) //if closest node is already checked pop from stack
+			closestNode.pop();
+		else {
+			currentNode = closestNode.top().node;
+			for (auto neighboringNode : weightedAdjacencyLists[currentNode]) //check all neighbors and update distance
+				if (minimumDistance[neighboringNode.node] > minimumDistance[currentNode] + neighboringNode.weight) {
+					minimumDistance[neighboringNode.node] = minimumDistance[currentNode] + neighboringNode.weight;
+					closestNode.push(Node(neighboringNode.node, minimumDistance[neighboringNode.node]));
+				}
+			
+			checkedNodes.insert(currentNode);
+		}
+
+	for (int i = 0; i < nrNodes; i++)
+		if (minimumDistance[i] == maxValue)
+			minimumDistance[i] = 0;
+
+	return minimumDistance;
+}
+
 int nodeNr, edgeNr;
 
 int main()
 {
 	inputFile >> nodeNr >> edgeNr;
 
-	Graph graph(nodeNr, false, true);
+	Graph graph(nodeNr, true, true);
 	graph.readEdges(edgeNr);
 
-	int totalWeight;
+	printVector(graph.getShortestPathFromNode(0), 1);
 	
-	vector<vector<int>> minimumSpanningTree = graph.getMinimumSpanningTree(totalWeight);
-
-	outputFile << totalWeight << "\n" << minimumSpanningTree.size() << "\n";
-
-	for (auto& edge : minimumSpanningTree)
-		printVector(edge);
 
 	/* MAIN HAVEL HAKIMI
 	//files: havelhakimi.in, havelhakimi.out
@@ -626,8 +668,8 @@ void countingSort(vector<int>& toSort, int maxSize) {
 }
 
 template <class T>
-void printVector(vector<T> toPrint) {
-	for (int i = 0; i < toPrint.size(); i++)
+void printVector(vector<T> toPrint, int startIndex) {
+	for (int i = startIndex; i < toPrint.size(); i++)
 		outputFile << toPrint[i] << " ";
 	outputFile << "\n";
 }
