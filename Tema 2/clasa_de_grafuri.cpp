@@ -38,13 +38,14 @@ struct Edge {
 class Graph {
 
 	vector<vector<int>> adjacencyLists;
+	bool clearAdjacencyLists; //For weighted graphs: regular adjacency lists can be cleared if no functions that need them are required 
 	struct WeightedEdge { int node, weight; WeightedEdge(int n, int w) : node(n), weight(w) {} };
 	vector<vector<WeightedEdge>> weightedAdjacencyLists;
 	int nrNodes;
 	bool isDirected, isWeighted;
 
 public:
-	Graph(int, bool, bool);
+	Graph(int, bool, bool, bool);
 	void readEdges(int);
 	vector<int> getDistancesToNode(int);
 	vector<int> getTopologicalSort();
@@ -66,10 +67,11 @@ private:
 	void tarjanDFS_BC(int, int, int&, vector<int>&, vector<int>&, stack<int>&, list<vector<int>>&);
 };
 
-Graph::Graph(int size = maxSize, bool isDirected = false, bool isWeighted = false) {
+Graph::Graph(int size = maxSize, bool isDirected = false, bool isWeighted = false, bool clearAdjacencyLists = false) {
 	nrNodes = size;
 	this->isDirected = isDirected;
 	this->isWeighted = isWeighted;
+	this->clearAdjacencyLists = clearAdjacencyLists;
 	initializeAdjacencyLists();
 }
 
@@ -142,6 +144,10 @@ void Graph::readEdges(int nrEdges) {
 			}
 		}
 	}
+
+	//frees up adjacencyLists memory if variable is not needed
+	if (clearAdjacencyLists)
+		vector<vector<int>>().swap(adjacencyLists);
 }
 /// <summary>
 /// Returns a vector of distances from a node given as parameter to all nodes in the graph, or -1 if they are inaccesible from that node.
