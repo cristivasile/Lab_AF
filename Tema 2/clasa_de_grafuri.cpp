@@ -9,12 +9,13 @@
 
 using namespace std;
 
-ifstream inputFile("dijkstra.in");
-ofstream outputFile("dijkstra.out");
+ifstream inputFile;
+ofstream outputFile;
 
 constexpr int maxSize = 100001;
 
 //Auxiliary functions not related to graphs, defined after main.
+
 /// <summary>
 /// Basic descending counting sort algorithm.
 /// </summary>
@@ -24,9 +25,16 @@ void countingSort(vector<int>& toSort, int maxSize = 1000);
 
 /// <param name="startIndex"> - can be used to exclude first "startIndex" elements from print</param>
 template <class T>
-void printVector(vector<T> toPrint, int startIndex = 0);
+void printVector(ostream& outputFile, vector<T> toPrint, int startIndex = 0);
+
+
+/// <summary>
+/// Initializes .in and .out files with a given filename.
+/// </summary>
+void initializeFiles(const string filename);
 //--------------------------------------------------------------
 
+//TODO - move to MST if you do not use it in other functions
 struct Edge {
 	int outNode, inNode, weight;
 	Edge(int o, int i, int w) : outNode(o), inNode(i), weight(w) {};
@@ -37,41 +45,53 @@ struct Edge {
 
 class Graph {
 
-	vector<vector<int>> adjacencyLists;
-	bool clearAdjacencyLists; //For weighted graphs: regular adjacency lists can be cleared if no functions that need them are required 
-	struct WeightedEdge { int node, weight; WeightedEdge(int n, int w) : node(n), weight(w) {} };
-	vector<vector<WeightedEdge>> weightedAdjacencyLists;
 	int nrNodes;
 	bool isDirected, isWeighted;
+	vector<vector<int>> adjacencyLists;
+	struct WeightedEdge { int node, weight; WeightedEdge(int n, int w) : node(n), weight(w) {} };
+	vector<vector<WeightedEdge>> weightedAdjacencyLists;
 
 public:
-	Graph(int, bool, bool, bool);
-	void readEdges(int);
-	vector<int> getDistancesToNode(int);
+
+	//creates a graph with nrNodes, isDirected and isWeighted
+	Graph(const int = maxSize, const bool = false, const bool = false);
+	//reads edges from given input stream
+	void readEdges(istream&, const int);
+	//returns a vector of distances from a node given as parameter to all nodes in the graph
+	vector<int> getDistancesToNode(const int);
+	//returns a topological sort if the graph is directed
 	vector<int> getTopologicalSort();
+	//returns all SCCs in the graph if it is directed
 	list<vector<int>> getStronglyConnectedComponents();
+	//returns all CCs (bridges) in the graph
 	vector<vector<int>> getCriticalConnections();
+	//returns all biconnected components in the graph if it is directed
 	list<vector<int>> getBiconnectedComponents();
+	//returns the number of connected components
 	int getNumberOfConnectedComponents();
+	//checks if collection of degrees can form a graph
 	friend bool havelHakimi(vector<int>);
+	//returns a MST of the graph
 	vector<vector<int>> getMinimumSpanningTree(int&);
-	vector<int> getShortestPathFromNode(int);
+	//returns minimum weight path from a node to all others if all edges have positive weights (Djikstra)
+	vector<int> getShortestPathFromNode(const int);
 
 private:
 	void initializeAdjacencyLists();
-	void BFS(int, vector<int>&);
-	void DFS(int, vector<int>&);
-	void DFS(int, vector<int>&, stack<int>&);
-	void tarjanDFS_SCC(int, int&, vector<int>&, vector<int>&, list<vector<int>>&, stack<int>&, unordered_set<int>&);
-	void tarjanDFS_CC(int, int&, vector<int>&, vector<int>&, int, vector<vector<int>>&);
-	void tarjanDFS_BC(int, int, int&, vector<int>&, vector<int>&, stack<int>&, list<vector<int>>&);
+	void addEdge(const int, const int);
+	void addWeightedEdge(const int, const int, const int);
+	void BFS(const int, vector<int>&);
+	void DFS(const int, vector<bool>&);
+	void DFS(const int, vector<bool>&, stack<int>&);
+	void tarjanDFS_SCC(const int, int&, vector<int>&, vector<int>&, stack<int>&, unordered_set<int>&, list<vector<int>>&);
+	void tarjanDFS_CC(const int,const int, int&, vector<int>&, vector<int>&, vector<vector<int>>&);
+	void tarjanDFS_BC(const int,const int, int&, vector<int>&, vector<int>&, stack<int>&, list<vector<int>>&);
 };
 
-Graph::Graph(int size = maxSize, bool isDirected = false, bool isWeighted = false, bool clearAdjacencyLists = false) {
-	nrNodes = size;
+Graph::Graph(const int nrNodes, const bool isDirected,const bool isWeighted ) {
+	this->nrNodes = nrNodes;
 	this->isDirected = isDirected;
 	this->isWeighted = isWeighted;
-	this->clearAdjacencyLists = clearAdjacencyLists;
 	initializeAdjacencyLists();
 }
 
@@ -95,10 +115,25 @@ void Graph::initializeAdjacencyLists() {
 		}
 }
 
+
 /// <summary>
-/// reads a number of edges given as parameter
+/// Adds an edge to the adjacency list.
 /// </summary>
-void Graph::readEdges(int nrEdges) {
+void Graph::addEdge(const int outNode, const int inNode) {
+	adjacencyLists[outNode].push_back(inNode);
+}
+
+/// <summary>
+/// Adds a weighted edge to the weightedAdjacency list.
+/// </summary>
+void Graph::addWeightedEdge(const int outNode, const int inNode, const int weight) {
+	weightedAdjacencyLists[outNode].push_back(WeightedEdge(inNode, weight));
+}
+
+/// <summary>
+/// Reads a number of edges given as parameter.
+/// </summary>
+void Graph::readEdges(istream& inputFile, const int nrEdges) {
 	int inNode, outNode, weight;
 
 	if (!isWeighted) {
@@ -107,7 +142,7 @@ void Graph::readEdges(int nrEdges) {
 				inputFile >> outNode >> inNode;
 				outNode--;
 				inNode--;
-				adjacencyLists[outNode].push_back(inNode);
+				addEdge(outNode, inNode);
 			}
 		}
 		else {
@@ -116,8 +151,8 @@ void Graph::readEdges(int nrEdges) {
 				outNode--;
 				inNode--;
 
-				adjacencyLists[outNode].push_back(inNode);
-				adjacencyLists[inNode].push_back(outNode);
+				addEdge(outNode, inNode);
+				addEdge(inNode, outNode);
 			}
 		}
 	}
@@ -127,8 +162,9 @@ void Graph::readEdges(int nrEdges) {
 				inputFile >> outNode >> inNode >> weight;
 				outNode--;
 				inNode--;
-				adjacencyLists[outNode].push_back(inNode);
-				weightedAdjacencyLists[outNode].push_back(WeightedEdge(inNode, weight));
+
+				addEdge(outNode, inNode);
+				addWeightedEdge(outNode, inNode, weight);
 			}
 		}
 		else {
@@ -137,23 +173,20 @@ void Graph::readEdges(int nrEdges) {
 				outNode--;
 				inNode--;
 
-				adjacencyLists[outNode].push_back(inNode);
-				weightedAdjacencyLists[outNode].push_back(WeightedEdge(inNode, weight));
-				adjacencyLists[inNode].push_back(outNode);
-				weightedAdjacencyLists[inNode].push_back(WeightedEdge(outNode, weight));
+				addEdge(outNode, inNode);
+				addWeightedEdge(outNode, inNode, weight);
+				addEdge(inNode, outNode);
+				addWeightedEdge(inNode, outNode, weight);
 			}
 		}
 	}
 
-	//frees up adjacencyLists memory if variable is not needed
-	if (clearAdjacencyLists)
-		vector<vector<int>>().swap(adjacencyLists);
 }
 /// <summary>
 /// Returns a vector of distances from a node given as parameter to all nodes in the graph, or -1 if they are inaccesible from that node.
 /// </summary>
 /// <param name="startNode">- the node for which distances are calculated</param>
-vector<int> Graph::getDistancesToNode(int startNode) {
+vector<int> Graph::getDistancesToNode(const int startNode) {
 
 	vector<int> distances(nrNodes, -1);
 	distances[startNode] = 0;          //distance from starting node to starting node is 0
@@ -168,7 +201,7 @@ vector<int> Graph::getDistancesToNode(int startNode) {
 /// </summary>
 /// <param name="startNode">- starting node of search </param>
 /// <param name="distances">- vector to map distances to </param>
-void Graph::BFS(int startNode, vector<int>& distances) {
+void Graph::BFS(const int startNode, vector<int>& distances) {
 	int currentNode, currentDistance;
 	queue<int> toVisit;
 	toVisit.push(startNode);
@@ -192,7 +225,7 @@ void Graph::BFS(int startNode, vector<int>& distances) {
 /// </summary>
 int Graph::getNumberOfConnectedComponents() {
 	int nr = 0;
-	vector<int> visited(nrNodes, 0); //all nodes ar unvisited at start
+	vector<bool> visited(nrNodes, 0); //all nodes ar unvisited at start
 
 	//go through all nodes
 	for (int i = 0; i < nrNodes; i++)
@@ -207,7 +240,7 @@ int Graph::getNumberOfConnectedComponents() {
 /// <summary>
 /// Iterative depth-first traversal that maps visited nodes in a vector of ints given as parameter.
 /// </summary>
-void Graph::DFS(int startNode, vector<int>& visited) {
+void Graph::DFS(const int startNode, vector <bool> & visited) {
 
 	int currentNode;
 	stack<int> toVisit;
@@ -234,7 +267,7 @@ void Graph::DFS(int startNode, vector<int>& visited) {
 /// <summary>
 /// Recursive DFS that pushes nodes to a stack when returning from them.
 /// </summary>
-void Graph::DFS(int currentNode, vector<int>& visited, stack<int>& solution) {
+void Graph::DFS(const int currentNode, vector<bool>& visited, stack<int>& solution) {
 
 	visited[currentNode] = 1;
 
@@ -251,6 +284,7 @@ void Graph::DFS(int currentNode, vector<int>& visited, stack<int>& solution) {
 /// </summary>
 bool havelHakimi(vector<int> degrees) {
 	int nrNodes = degrees.size();
+	int currentIndex, nrConnectedNodes;
 
 	//check if sum of degrees is even or odd
 	int sum = 0;
@@ -269,18 +303,23 @@ bool havelHakimi(vector<int> degrees) {
 		return 0;
 	}
 
-	while (degrees[0] != 0) {
-		outputFile << endl;
-		//for the next degrees[0] nodes, connect current node by subtracting one
-		for (int i = 1; i <= degrees[0]; i++)
-			if (degrees[i] != 0)
+	currentIndex = 0;
+
+	while (degrees[currentIndex] != 0) {
+		nrConnectedNodes = 0;
+		//for the next degrees[currentIndex] nodes, connect current node by subtracting one
+		for (int i = currentIndex + 1; i < nrNodes && nrConnectedNodes < degrees[currentIndex]; i++)
+			if (degrees[i] != 0) {
 				degrees[i]--;
-			else // if degrees[i] = 0 there are no more nodes to connect to, degrees can't form a graph
-				return 0;
+				nrConnectedNodes++;
+			}
+
+		if(degrees[currentIndex] != nrConnectedNodes) // if there were not enough nodes to connect to, degrees can't form a graph
+			return 0;
 
 		//the current node was connected the required number of times and is set to 0
-		degrees[0] = 0;
-		countingSort(degrees);
+		degrees[currentIndex++] = 0;
+
 	}
 
 	//at this point degrees vector is empty so degrees can form a graph
@@ -301,7 +340,7 @@ vector<int> Graph::getTopologicalSort() {
 		return sortedItems;
 	}
 	else {
-		vector<int> visited(nrNodes, 0);
+		vector<bool> visited(nrNodes, 0);
 		for (int node = 0; node < nrNodes; node++)
 			if (!visited[node])
 				DFS(node, visited, solution);
@@ -324,7 +363,7 @@ vector<int> Graph::getTopologicalSort() {
 /// <param name="stronglyConnectedComponents">- list where connected components are added when found</param>
 /// <param name="notCompleted">- collection of nodes that have been visited but are not part of strongly complete connected components yet</param>
 /// <param name="onStack">- hash containing all nodes that are currently on notCompleted stack</param>
-void Graph::tarjanDFS_SCC(int currentNode, int& counter, vector<int>& visitIndex, vector<int>& lowestAncestorReachable, list<vector<int>>& stronglyConnectedComponents, stack<int>& notCompleted, unordered_set<int>& onStack) {
+void Graph::tarjanDFS_SCC(const int currentNode, int& counter, vector<int>& visitIndex, vector<int>& lowestAncestorReachable, stack<int>& notCompleted, unordered_set<int>& onStack, list<vector<int>>& stronglyConnectedComponents) {
 
 	visitIndex[currentNode] = counter++;
 	lowestAncestorReachable[currentNode] = visitIndex[currentNode];
@@ -335,7 +374,7 @@ void Graph::tarjanDFS_SCC(int currentNode, int& counter, vector<int>& visitIndex
 	for (int neighboringNode : adjacencyLists[currentNode])
 		if (visitIndex[neighboringNode] == -1) {
 
-			tarjanDFS_SCC(neighboringNode, counter, visitIndex, lowestAncestorReachable, stronglyConnectedComponents, notCompleted, onStack);
+			tarjanDFS_SCC(neighboringNode, counter, visitIndex, lowestAncestorReachable, notCompleted, onStack, stronglyConnectedComponents);
 
 			if (lowestAncestorReachable[neighboringNode] < lowestAncestorReachable[currentNode])
 				lowestAncestorReachable[currentNode] = lowestAncestorReachable[neighboringNode];
@@ -378,7 +417,7 @@ list<vector<int>> Graph::getStronglyConnectedComponents() {
 	}
 	else for (int node = 0; node < nrNodes; node++)
 		if (visitIndex[node] == -1) {
-			tarjanDFS_SCC(node, counter, visitIndex, lowestAncestorReachable, stronglyConnectedComponents, notCompleted, onStack);
+			tarjanDFS_SCC(node, counter, visitIndex, lowestAncestorReachable, notCompleted, onStack, stronglyConnectedComponents);
 		}
 
 	return stronglyConnectedComponents;
@@ -392,7 +431,7 @@ list<vector<int>> Graph::getStronglyConnectedComponents() {
 /// <param name="lowestAncestor">- index of lowest ancestor reachable by back edges</param>
 /// <param name="parent">- parent node (in DFS tree) of current node</param>
 /// <param name="criticalConnections">- critical connections container</param>
-void Graph::tarjanDFS_CC(int currentNode, int& counter, vector<int>& visitIndex, vector<int>& lowestAncestorReachable, int parent, vector<vector<int>>& criticalConnections) {
+void Graph::tarjanDFS_CC(const int currentNode,const int parent, int& counter, vector<int>& visitIndex, vector<int>& lowestAncestorReachable, vector<vector<int>>& criticalConnections) {
 
 	visitIndex[currentNode] = counter++;
 	lowestAncestorReachable[currentNode] = visitIndex[currentNode];
@@ -400,7 +439,7 @@ void Graph::tarjanDFS_CC(int currentNode, int& counter, vector<int>& visitIndex,
 	for (int neighboringNode : adjacencyLists[currentNode])
 		if (visitIndex[neighboringNode] == -1) {
 
-			tarjanDFS_CC(neighboringNode, counter, visitIndex, lowestAncestorReachable, currentNode, criticalConnections);
+			tarjanDFS_CC(neighboringNode, currentNode, counter, visitIndex, lowestAncestorReachable, criticalConnections);
 
 			if (lowestAncestorReachable[neighboringNode] < lowestAncestorReachable[currentNode])
 				lowestAncestorReachable[currentNode] = lowestAncestorReachable[neighboringNode];
@@ -415,7 +454,7 @@ void Graph::tarjanDFS_CC(int currentNode, int& counter, vector<int>& visitIndex,
 }
 
 /// <summary>
-/// Computes and returns all critical connections (bridges) in graph
+/// Computes and returns all critical connections (bridges) in the graph
 /// </summary>
 vector<vector<int>> Graph::getCriticalConnections() {
 	vector<vector<int>> criticalConnections;
@@ -425,7 +464,7 @@ vector<vector<int>> Graph::getCriticalConnections() {
 
 	for (int node = 0; node < nrNodes; node++)
 		if (visitIndex[node] == -1)
-			tarjanDFS_CC(node, counter, visitIndex, lowestAncestorReachable, -1, criticalConnections);
+			tarjanDFS_CC(node, -1, counter, visitIndex, lowestAncestorReachable, criticalConnections);
 	//parent of first node in DFS tree is -1
 
 	return criticalConnections;
@@ -440,7 +479,7 @@ vector<vector<int>> Graph::getCriticalConnections() {
 /// <param name="lowestAncestor">- index of lowest ancestor reachable by back edges</param>
 /// <param name="notCompleted">- all visited nodes that are not yet part of completed biconnected components</param>
 /// <param name="biconnectedComponents">- found biconnected components are stored here</param>
-void Graph::tarjanDFS_BC(int currentNode, int parent, int& counter, vector<int>& visitIndex, vector<int>& lowestAncestorReachable, stack<int>& notCompleted, list<vector<int>>& biconnectedComponents) {
+void Graph::tarjanDFS_BC(int currentNode,const int parent, int& counter, vector<int>& visitIndex, vector<int>& lowestAncestorReachable, stack<int>& notCompleted, list<vector<int>>& biconnectedComponents) {
 
 	visitIndex[currentNode] = counter++;
 	lowestAncestorReachable[currentNode] = visitIndex[currentNode];
@@ -572,7 +611,7 @@ vector<vector<int>> Graph::getMinimumSpanningTree(int& totalWeight) {
 /// <summary>
 /// Dijkstra's algorithm used in determining shortest path to all nodes starting from a single point.
 /// </summary>
-vector<int> Graph::getShortestPathFromNode(int startNode) {
+vector<int> Graph::getShortestPathFromNode(const int startNode) {
 
 	const int maxValue = 1000000000;
 
@@ -618,23 +657,26 @@ int nodeNr, edgeNr;
 
 int main()
 {
+	
+	initializeFiles("dijkstra");
 	inputFile >> nodeNr >> edgeNr;
 
 	Graph graph(nodeNr, true, true);
-	graph.readEdges(edgeNr);
+	graph.readEdges(inputFile, edgeNr);
 
-	printVector(graph.getShortestPathFromNode(0), 1);
+	printVector(outputFile, graph.getShortestPathFromNode(0), 1);
 	
+	
+	/*
+	//MAIN HAVEL HAKIMI
+	initializeFiles("havelhakimi");
+	inputFile >> nodeNr;
 
-	/* MAIN HAVEL HAKIMI
-	//files: havelhakimi.in, havelhakimi.out
-	inputFile >> nrNoduri;
+	Graph graph(nodeNr, false, false);
 
-	Graph graph(nrNoduri, false);
+	vector<int> degrees(nodeNr);
 
-	vector<int> degrees(nrNoduri);
-
-	for (int i = 0; i < nrNoduri; i++) {
+	for (int i = 0; i < nodeNr; i++) {
 		inputFile >> degrees[i];
 	}
 
@@ -674,8 +716,13 @@ void countingSort(vector<int>& toSort, int maxSize) {
 }
 
 template <class T>
-void printVector(vector<T> toPrint, int startIndex) {
+void printVector(ostream& outputFile, vector<T> toPrint, int startIndex) {
 	for (int i = startIndex; i < toPrint.size(); i++)
 		outputFile << toPrint[i] << " ";
 	outputFile << "\n";
+}
+
+void initializeFiles(const string filename) {
+	inputFile = ifstream(filename + ".in");
+	outputFile = ofstream(filename + ".out");
 }
