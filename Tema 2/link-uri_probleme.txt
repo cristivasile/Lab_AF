@@ -1,0 +1,4 @@
+1. APM: 100 - https://infoarena.ro/job_detail/2795862?action=view-source
+2. Disjoint: 100 - https://infoarena.ro/job_detail/2801025?action=view-source
+3. Dijkstra: 100 - https://infoarena.ro/job_detail/2796469?action=view-source
+4. Bellmanford: 100 - https://infoarena.ro/job_detail/2801000?action=view-source
