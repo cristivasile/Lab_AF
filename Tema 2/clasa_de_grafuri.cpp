@@ -1,4 +1,5 @@
 #include <fstream>
+#include <iostream>
 #include <algorithm>
 #include <queue>
 #include <iterator>
@@ -34,14 +35,69 @@ void printVector(ostream& outputFile, vector<T> toPrint, int startIndex = 0);
 void initializeFiles(const string filename);
 //--------------------------------------------------------------
 
-//TODO - move to MST if you do not use it in other functions
-struct Edge {
-	int outNode, inNode, weight;
-	Edge(int o, int i, int w) : outNode(o), inNode(i), weight(w) {};
-	bool operator<(const Edge& ob) const{
-		return weight > ob.weight;
-	}
+class Disjoint_sets {
+
+	vector <int> parent;
+	vector <int> height;
+
+	void mergeSets(const int, const int);
+public:
+	//creates n disjoint sets
+	Disjoint_sets(const int);
+	//finds the root of a node
+	int findRoot(int);
+	//merges two sets containing given nodes
+	void mergeContainingSets(const int, const int);
 };
+
+Disjoint_sets::Disjoint_sets(const int nrNodes) {
+	parent = vector<int>(nrNodes, -1);
+	height = vector<int>(nrNodes, 1);
+}
+
+/// <summary>
+/// Finds root of given node.
+/// </summary>
+int Disjoint_sets::findRoot(int node) {
+
+	int lastNode;
+	int root = node;
+
+	//go up the tree
+	while (parent[root] != -1)
+		root = parent[root];
+
+	//path compression
+	while (parent[node] != -1) {
+		lastNode = node;
+		node = parent[node];
+		parent[lastNode] = root;
+	}
+
+	return root;
+}
+
+/// <summary>
+/// Merges two disjoint sets.
+/// </summary>
+void Disjoint_sets::mergeSets(const int root1, const int root2) {
+
+	if (height[root1] > height[root2])
+		parent[root2] = root1;
+	else {
+		parent[root1] = root2;
+		//if both sets had same height increment resulting set's height 
+		if (height[root1] == height[root2])
+			height[root2]++;
+	}
+}
+
+/// <summary>
+/// Searches for the roots of two given nodes and merges the sets the nodes are contained in
+/// </summary>
+void Disjoint_sets::mergeContainingSets(const int node1, const int node2) {
+	mergeSets(findRoot(node1), findRoot(node2));
+}
 
 class Graph {
 
@@ -50,9 +106,19 @@ class Graph {
 	vector<vector<int>> adjacencyLists;
 	struct WeightedEdge { int node, weight; WeightedEdge(int n, int w) : node(n), weight(w) {} };
 	vector<vector<WeightedEdge>> weightedAdjacencyLists;
+	friend Disjoint_sets;
+
+	void initializeAdjacencyLists();
+	void addEdge(const int, const int);
+	void addWeightedEdge(const int, const int, const int);
+	void BFS(const int, vector<int>&);
+	void DFS(const int, vector<bool>&);
+	void DFS(const int, vector<bool>&, stack<int>&);
+	void tarjanDFS_SCC(const int, int&, vector<int>&, vector<int>&, stack<int>&, unordered_set<int>&, list<vector<int>>&);
+	void tarjanDFS_CC(const int, const int, int&, vector<int>&, vector<int>&, vector<vector<int>>&);
+	void tarjanDFS_BC(const int, const int, int&, vector<int>&, vector<int>&, stack<int>&, list<vector<int>>&);
 
 public:
-
 	//creates a graph with nrNodes, isDirected and isWeighted
 	Graph(const int = maxSize, const bool = false, const bool = false);
 	//reads edges from given input stream
@@ -74,18 +140,9 @@ public:
 	//returns a MST of the graph
 	vector<vector<int>> getMinimumSpanningTree(int&);
 	//returns minimum weight path from a node to all others if all edges have positive weights (Djikstra)
-	vector<int> getShortestPathFromNode(const int);
-
-private:
-	void initializeAdjacencyLists();
-	void addEdge(const int, const int);
-	void addWeightedEdge(const int, const int, const int);
-	void BFS(const int, vector<int>&);
-	void DFS(const int, vector<bool>&);
-	void DFS(const int, vector<bool>&, stack<int>&);
-	void tarjanDFS_SCC(const int, int&, vector<int>&, vector<int>&, stack<int>&, unordered_set<int>&, list<vector<int>>&);
-	void tarjanDFS_CC(const int,const int, int&, vector<int>&, vector<int>&, vector<vector<int>>&);
-	void tarjanDFS_BC(const int,const int, int&, vector<int>&, vector<int>&, stack<int>&, list<vector<int>>&);
+	vector<int> getLightestPathFromNode(const int);
+	//checks if graph has negative weight cycles, and if not then returns minimum weight path (Bellman-Ford)
+	vector<int> getLightestPathFromNode(const int, bool&);
 };
 
 Graph::Graph(const int nrNodes, const bool isDirected,const bool isWeighted ) {
@@ -567,6 +624,15 @@ list<vector<int>> Graph::getBiconnectedComponents() {
 /// <param name="totalWeight"> - total weight of MST edges returned in this parameter</param>
 /// <returns>Vector of edges (stored in vectors) that make up the MST.</returns>
 vector<vector<int>> Graph::getMinimumSpanningTree(int& totalWeight) {
+
+	struct Edge {
+		int outNode, inNode, weight;
+		Edge(int o, int i, int w) : outNode(o), inNode(i), weight(w) {};
+		bool operator<(const Edge& ob) const {
+			return weight > ob.weight;
+		}
+	};
+
 	vector<vector<int>> minimumSpanningTree;
 	vector<bool> isAdded(nrNodes, false);
 	priority_queue<Edge> lightestEdge;
@@ -609,27 +675,27 @@ vector<vector<int>> Graph::getMinimumSpanningTree(int& totalWeight) {
 }
 
 /// <summary>
-/// Dijkstra's algorithm used in determining shortest path to all nodes starting from a single point.
+/// Dijkstra's algorithm used in determining lightest path from starting node to all others. Note: only works if all edges have positive weights.
 /// </summary>
-vector<int> Graph::getShortestPathFromNode(const int startNode) {
+vector<int> Graph::getLightestPathFromNode(const int startNode) {
 
 	const int maxValue = 1000000000;
 
 	struct Node {
-		int node, distance;
-		Node(int n, int w) : node(n), distance(w) {};
+		int node, weight;
+		Node(int n, int w) : node(n), weight(w) {};
 		bool operator<(const Node& ob) const {
-			return distance > ob.distance;
+			return weight > ob.weight;
 		}
 	}; //auxiliary node struct used in closestNode heap
 
 	unordered_set <int> checkedNodes;
-	vector<int> minimumDistance(nrNodes, maxValue); //we assume all nodes are inaccessible on initialization
+	vector<int> lightestPath(nrNodes, maxValue); //we assume all nodes are inaccessible on initialization
 	priority_queue<Node> closestNode; 
 	int currentNode;
 
 	currentNode = startNode;
-	minimumDistance[currentNode] = 0;
+	lightestPath[currentNode] = 0;
 	closestNode.push(Node(currentNode, 0));
 
 	while (closestNode.size() > 0)
@@ -638,35 +704,92 @@ vector<int> Graph::getShortestPathFromNode(const int startNode) {
 		else {
 			currentNode = closestNode.top().node;
 			for (auto neighboringNode : weightedAdjacencyLists[currentNode]) //check all neighbors and update distance
-				if (minimumDistance[neighboringNode.node] > minimumDistance[currentNode] + neighboringNode.weight) {
-					minimumDistance[neighboringNode.node] = minimumDistance[currentNode] + neighboringNode.weight;
-					closestNode.push(Node(neighboringNode.node, minimumDistance[neighboringNode.node]));
+				if (lightestPath[neighboringNode.node] > lightestPath[currentNode] + neighboringNode.weight) {
+					lightestPath[neighboringNode.node] = lightestPath[currentNode] + neighboringNode.weight;
+					closestNode.push(Node(neighboringNode.node, lightestPath[neighboringNode.node]));
 				}
 			
 			checkedNodes.insert(currentNode);
 		}
 
 	for (int i = 0; i < nrNodes; i++)
-		if (minimumDistance[i] == maxValue)
-			minimumDistance[i] = 0;
+		if (lightestPath[i] == maxValue)
+			lightestPath[i] = 0;
 
-	return minimumDistance;
+	return lightestPath;
 }
 
-int nodeNr, edgeNr;
+/// <summary>
+/// Bellman-Ford algorithm used in determining lightest path from starting node to all others.
+/// </summary>
+/// <param name="hasNegativeCycles"> - used to check if graph has negative weight cycles</param>
+vector<int> Graph::getLightestPathFromNode(const int startNode, bool& hasNegativeCycles) {
+
+	const int maxValue = 1000000000;
+
+	struct Node {
+		int node, weight;
+		Node(int n, int w) : node(n), weight(w) {};
+		bool operator<(const Node& ob) const {
+			return weight > ob.weight;
+		}
+	}; //auxiliary node struct used in closestNode heap
+
+	vector<int> lightestPath(nrNodes, maxValue); //we assume all nodes are inaccessible on initialization
+	vector<int> checkedNodes(nrNodes, 0); //if a node is checked nrNodes times the graph has a negative-weight cycle
+	priority_queue<Node> closestNode;
+	int currentNode, currentWeight;
+
+	hasNegativeCycles = false;
+
+	lightestPath[startNode] = 0;
+	closestNode.push(Node(startNode, 0));
+
+	while (closestNode.empty() == false) {
+
+		currentNode = closestNode.top().node;
+		currentWeight = closestNode.top().weight;
+		closestNode.pop();
+
+		if (lightestPath[currentNode] == currentWeight) {
+			checkedNodes[currentNode] ++;
+
+			if (checkedNodes[currentNode] == nrNodes) {
+				hasNegativeCycles = true;
+				break;
+			}
+
+			for(auto& edge : weightedAdjacencyLists[currentNode])
+				if (lightestPath[edge.node] > currentWeight + edge.weight) {
+					lightestPath[edge.node] = currentWeight + edge.weight;
+					closestNode.push(Node(edge.node, lightestPath[edge.node]));
+				}
+		}
+
+	}
+	return lightestPath;
+}
+
+int nodeNr, opNr, opType, node1, node2;
 
 int main()
 {
 	
-	initializeFiles("dijkstra");
-	inputFile >> nodeNr >> edgeNr;
+	initializeFiles("disjoint");
+	inputFile >> nodeNr;
 
-	Graph graph(nodeNr, true, true);
-	graph.readEdges(inputFile, edgeNr);
+	Disjoint_sets disjoint(nodeNr + 1);
 
-	printVector(outputFile, graph.getShortestPathFromNode(0), 1);
-	
-	
+	inputFile >> opNr;
+	for (int i = 0; i < opNr; i++) {
+		inputFile >> opType >> node1 >> node2;
+		if (opType == 1)
+			disjoint.mergeContainingSets(node1, node2);
+		else
+			if (disjoint.findRoot(node1) == disjoint.findRoot(node2))
+				outputFile << "DA\n";
+			else outputFile << "NU\n";
+	}
 	/*
 	//MAIN HAVEL HAKIMI
 	initializeFiles("havelhakimi");
@@ -690,7 +813,7 @@ int main()
 }
 
 void countingSort(vector<int>& toSort, int maxSize) {
-	if (maxSize > 10000000)
+	if (maxSize > 100000000)
 		maxSize = 100000000;
 
 	vector<int> count(maxSize, 0);
