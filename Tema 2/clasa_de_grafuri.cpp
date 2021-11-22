@@ -157,19 +157,12 @@ Graph::Graph(const int nrNodes, const bool isDirected,const bool isWeighted ) {
 /// initializes empty adjacency lists (vectors)
 /// </summary>
 void Graph::initializeAdjacencyLists() {
-	if(!isWeighted)
-		for (int i = 0; i < nrNodes; i++) {
-			vector<int> emptyAdjacencyVector;
-			adjacencyLists.push_back(emptyAdjacencyVector);
-		}
-	else
-		for (int i = 0; i < nrNodes; i++) {
-			vector<int> emptyAdjacencyVector;
-			adjacencyLists.push_back(emptyAdjacencyVector);
 
-			vector<WeightedEdge> emptyWeightVector;
-			weightedAdjacencyLists.push_back(emptyWeightVector);
-		}
+	adjacencyLists = vector<vector<int>>(nrNodes, vector<int>());
+
+	if (isWeighted)
+		weightedAdjacencyLists = vector<vector<WeightedEdge>>(nrNodes, vector<WeightedEdge>());
+
 }
 
 
@@ -770,26 +763,25 @@ vector<int> Graph::getLightestPathFromNode(const int startNode, bool& hasNegativ
 	return lightestPath;
 }
 
-int nodeNr, opNr, opType, node1, node2;
+int nodeNr, edgeNr;
 
 int main()
 {
 	
-	initializeFiles("disjoint");
-	inputFile >> nodeNr;
+	initializeFiles("bellmanford");
+	inputFile >> nodeNr >> edgeNr;
 
-	Disjoint_sets disjoint(nodeNr + 1);
+	Graph graph(nodeNr, true, true);
+	graph.readEdges(inputFile, edgeNr);
 
-	inputFile >> opNr;
-	for (int i = 0; i < opNr; i++) {
-		inputFile >> opType >> node1 >> node2;
-		if (opType == 1)
-			disjoint.mergeContainingSets(node1, node2);
-		else
-			if (disjoint.findRoot(node1) == disjoint.findRoot(node2))
-				outputFile << "DA\n";
-			else outputFile << "NU\n";
-	}
+	bool hasNegativeCycles = false;
+	vector<int> lightestPath = graph.getLightestPathFromNode(0, hasNegativeCycles);
+
+	if (hasNegativeCycles)
+		outputFile << "Ciclu negativ!";
+	else
+		printVector(outputFile, lightestPath, 1);
+
 	/*
 	//MAIN HAVEL HAKIMI
 	initializeFiles("havelhakimi");
