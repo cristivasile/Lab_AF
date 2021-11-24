@@ -730,19 +730,19 @@ vector<int> Graph::getLightestPathFromNode(const int startNode, bool& hasNegativ
 
 	vector<int> lightestPath(nrNodes, maxValue); //we assume all nodes are inaccessible on initialization
 	vector<int> checkedNodes(nrNodes, 0); //if a node is checked nrNodes times the graph has a negative-weight cycle
-	priority_queue<Node> closestNode;
+	queue<Node> nodeQueue;
 	int currentNode, currentWeight;
 
 	hasNegativeCycles = false;
 
 	lightestPath[startNode] = 0;
-	closestNode.push(Node(startNode, 0));
+	nodeQueue.push(Node(startNode, 0));
 
-	while (closestNode.empty() == false) {
+	while (nodeQueue.empty() == false) {
 
-		currentNode = closestNode.top().node;
-		currentWeight = closestNode.top().weight;
-		closestNode.pop();
+		currentNode = nodeQueue.front().node;
+		currentWeight = nodeQueue.front().weight;
+		nodeQueue.pop();
 
 		if (lightestPath[currentNode] == currentWeight) {
 			checkedNodes[currentNode] ++;
@@ -755,7 +755,7 @@ vector<int> Graph::getLightestPathFromNode(const int startNode, bool& hasNegativ
 			for(auto& edge : weightedAdjacencyLists[currentNode])
 				if (lightestPath[edge.node] > currentWeight + edge.weight) {
 					lightestPath[edge.node] = currentWeight + edge.weight;
-					closestNode.push(Node(edge.node, lightestPath[edge.node]));
+					nodeQueue.push(Node(edge.node, lightestPath[edge.node]));
 				}
 		}
 
